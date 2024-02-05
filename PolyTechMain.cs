@@ -14,17 +14,18 @@ using System.Timers;
 using UnityEngine;
 using TMPro;
 using Logger = BepInEx.Logging.Logger;
+using System.Runtime.CompilerServices;
 namespace PolyTechFramework
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-    [BepInProcess("Poly Bridge 2")]
+    [BepInProcess("Poly Bridge 3")]
     [BepInDependency(ConfigurationManager.ConfigurationManager.GUID, BepInDependency.DependencyFlags.HardDependency)]
     public class PolyTechMain : PolyTechMod
     {
         public new const string
             PluginGuid = "polytech.polytechframework",
             PluginName = "PolyTech Framework",
-            PluginVersion = "0.9.7";
+            PluginVersion = "0.9.8";
         private static BindingList<PolyTechMod>
             noncheatMods = new BindingList<PolyTechMod> { },
             cheatMods = new BindingList<PolyTechMod> { };
@@ -116,7 +117,6 @@ namespace PolyTechFramework
             harmony.PatchAll(typeof(PolyTechMain).Assembly);
 
             PolyTechUtils.setModdedSimSpeeds();
-            PolyTechUtils.setReplaysModded();
             PolyTechUtils.setVersion();
             this.ptfLogger = Logger;
             Logger.LogInfo($"Loaded {PluginName} v{PluginVersion}");
@@ -135,7 +135,7 @@ namespace PolyTechFramework
             PopupQueue.TryShowNextPopup();
             if (numEnabledCheatMods() > 0 && Bridge.IsSimulating() && !BridgeCheat.m_Cheated){
                 GameStateSim.m_BudgetUsed = Mathf.RoundToInt(Budget.CalculateBridgeCost());
-			    BridgeCheat.m_Cheated = BridgeCheat.CheckForCheating((float)GameStateSim.m_BudgetUsed);
+			    BridgeCheat.CheckForCheating(Sandbox.m_CurrentLayoutData, Sandbox.m_CurrentLayoutData.m_Bridge, Game.GetLevelId());
             }
             if (!flag && globalToggleHotkey.Value.IsDown())
             {
@@ -150,7 +150,7 @@ namespace PolyTechFramework
                     this.isEnabled = modEnabled.Value = true;
                     this.enableMod();
                 }
-                if (modsToggledSummary.Length > 0) PopUpWarning.Display(modsToggledSummary);
+                if (modsToggledSummary.Length > 0) PopUpMessage.Display(modsToggledSummary, () => {});
                 //Logger.LogMessage(modsToggledSummary);
 
             }
@@ -241,7 +241,6 @@ namespace PolyTechFramework
                 summary += $" - {mod.Info.Metadata.Name}";
             }
             modsToggledSummary = summary;
-            PolyTechUtils.setReplaysModded();
         }
 
         public override void disableMod()
@@ -263,7 +262,6 @@ namespace PolyTechFramework
                 mod.disableMod();
                 summary += $" - {mod.Info.Metadata.Name}";
             }
-            PolyTechUtils.setReplaysVanilla();
         }
 
         public static void checkForModUpdate(PolyTechMod plugin)
@@ -447,132 +445,131 @@ namespace PolyTechFramework
                 }
             }
             public static bool PopupIsActive(){
-                return GameUI.m_Instance.m_PopUpMessage.m_Animator.isActiveAndEnabled || PopUpMessage.IsActive() ||
-                GameUI.m_Instance.m_PopUpInputField.m_Animator.isActiveAndEnabled || PopupInputField.IsActive() ||
-                GameUI.m_Instance.m_PopUpTwoChoices.m_Animator.isActiveAndEnabled || PopUpTwoChoices.IsActive() ||
-                GameUI.m_Instance.m_PopUpWarning.m_Animator.isActiveAndEnabled || PopUpWarning.IsActive();
+                return GameUI.m_Instance.m_PopUpMessage.isActiveAndEnabled || PopUpMessage.IsActive() ||
+                GameUI.m_Instance.m_PopUpInputField.isActiveAndEnabled || PopupInputField.IsActive() ||
+                GameUI.m_Instance.m_PopUpTwoChoices.isActiveAndEnabled || PopUpTwoChoices.IsActive();
             }
         }
         public interface Popup {
             void Display();
         }
 
-        public class PopupMessageQueueItem : Popup {
-            public PopupMessageQueueItem(){}
-            public PopupMessageQueueItem(
-                string message, 
-                Panel_PopUpMessage.OnChoiceDelegate okDelegate, 
-                Panel_PopUpMessage.OnChoiceDelegate cancelDelegate,
-                PopUpWarningCategory warningCategory
-            ){
-                this.message = message;
-                this.okDelegate = okDelegate;
-                this.cancelDelegate = cancelDelegate;
-                this.warningCategory = warningCategory;
-            }
-            public void Display(){
-                PopUpMessage.Display(message, okDelegate, cancelDelegate, warningCategory);
-                GameUI.m_Instance.m_PopUpMessage.m_NeverShowAgainToggle.transform.parent.gameObject.SetActive(false);
-                if (cancelDelegate == null){
-                    GameUI.m_Instance.m_PopUpMessage.m_CancelButton.gameObject.SetActive(false);
-                }
+        // public class PopupMessageQueueItem : Popup {
+        //     public PopupMessageQueueItem(){}
+        //     public PopupMessageQueueItem(
+        //         string message, 
+        //         Panel_PopUpMessage.OnChoiceDelegate okDelegate, 
+        //         Panel_PopUpMessage.OnChoiceDelegate cancelDelegate,
+        //         PopUpWarningCategory warningCategory
+        //     ){
+        //         this.message = message;
+        //         this.okDelegate = okDelegate;
+        //         this.cancelDelegate = cancelDelegate;
+        //         this.warningCategory = warningCategory;
+        //     }
+        //     public void Display(){
+        //         PopUpMessage.Display(message, okDelegate, cancelDelegate, warningCategory);
+        //         GameUI.m_Instance.m_PopUpMessage.m_NeverShowAgainToggle.transform.parent.gameObject.SetActive(false);
+        //         if (cancelDelegate == null){
+        //             GameUI.m_Instance.m_PopUpMessage.m_CancelButton.gameObject.SetActive(false);
+        //         }
 
-            }
-            public string message;
-            public Panel_PopUpMessage.OnChoiceDelegate okDelegate;
-            public Panel_PopUpMessage.OnChoiceDelegate cancelDelegate;
-            public PopUpWarningCategory warningCategory;
-        }
+        //     }
+        //     public string message;
+        //     public Panel_PopUpMessage.OnChoiceDelegate okDelegate;
+        //     public Panel_PopUpMessage.OnChoiceDelegate cancelDelegate;
+        //     public PopUpWarningCategory warningCategory;
+        // }
 
-        [HarmonyPatch(typeof(PopUpMessage), "Display", new Type[] { 
-            typeof(string), 
-            typeof(Panel_PopUpMessage.OnChoiceDelegate), 
-        })]
-        [HarmonyPrefix]
-        public static bool PopupMessageCancelButtonFix(
-            string message,
-            Panel_PopUpMessage.OnChoiceDelegate okDelegate
-        ){
-            PopUpMessage.Display(message, okDelegate, () => {}, PopUpWarningCategory.NONE);
-            GameUI.m_Instance.m_PopUpMessage.m_NeverShowAgainToggle.transform.parent.gameObject.SetActive(false);
-            return false;
-        }
+        // [HarmonyPatch(typeof(PopUpMessage), "Display", new Type[] { 
+        //     typeof(string), 
+        //     typeof(Panel_PopUpMessage.OnChoiceDelegate), 
+        // })]
+        // [HarmonyPrefix]
+        // public static bool PopupMessageCancelButtonFix(
+        //     string message,
+        //     Panel_PopUpMessage.OnOkDelegate okDelegate
+        // ){
+        //     PopUpMessage.Display(message, okDelegate, () => {}, PopUpWarningCategory.NONE);
+        //     GameUI.m_Instance.m_PopUpMessage.m_NeverShowAgainToggle.transform.parent.gameObject.SetActive(false);
+        //     return false;
+        // }
 
-        [HarmonyPatch(typeof(PopUpMessage), "Display", new Type[] { 
-            typeof(string), 
-            typeof(Panel_PopUpMessage.OnChoiceDelegate), 
-            typeof(Panel_PopUpMessage.OnChoiceDelegate), 
-            typeof(PopUpWarningCategory)
-        })]
-        [HarmonyPrefix]
-        public static bool PopupMessagePatch(
-            string message,
-            Panel_PopUpMessage.OnChoiceDelegate okDelegate,
-            Panel_PopUpMessage.OnChoiceDelegate cancelDelegate,
-            PopUpWarningCategory warningCategory
-        ){
-            if (PopupQueue.PopupIsActive()){
-                ptfInstance.ptfLogger.LogInfo("popup is already active, queueing!");
-                PopupMessageQueueItem QueueItem = new PopupMessageQueueItem(
-                    message,
-                    okDelegate,
-                    cancelDelegate,
-                    warningCategory
-                );
-                PopupQueue.queue.Enqueue(QueueItem);
-                return false;
-            }
-            return true;
-        }
+        // [HarmonyPatch(typeof(PopUpMessage), "Display", new Type[] { 
+        //     typeof(string), 
+        //     typeof(Panel_PopUpMessage.OnChoiceDelegate), 
+        //     typeof(Panel_PopUpMessage.OnChoiceDelegate), 
+        //     typeof(PopUpWarningCategory)
+        // })]
+        // [HarmonyPrefix]
+        // public static bool PopupMessagePatch(
+        //     string message,
+        //     Panel_PopUpMessage.OnChoiceDelegate okDelegate,
+        //     Panel_PopUpMessage.OnChoiceDelegate cancelDelegate,
+        //     PopUpWarningCategory warningCategory
+        // ){
+        //     if (PopupQueue.PopupIsActive()){
+        //         ptfInstance.ptfLogger.LogInfo("popup is already active, queueing!");
+        //         PopupMessageQueueItem QueueItem = new PopupMessageQueueItem(
+        //             message,
+        //             okDelegate,
+        //             cancelDelegate,
+        //             warningCategory
+        //         );
+        //         PopupQueue.queue.Enqueue(QueueItem);
+        //         return false;
+        //     }
+        //     return true;
+        // }
 
 
-        public class PopupInputFieldQueueItem : Popup {
-            public PopupInputFieldQueueItem(){}
+        // public class PopupInputFieldQueueItem : Popup {
+        //     public PopupInputFieldQueueItem(){}
 
-            public PopupInputFieldQueueItem(
-                string title,
-                string defaultText,
-                Panel_PopUpInputField.OnOkDelegate okDelegate
-            ){
-                this.title = title;
-                this.defaultText = defaultText;
-                this.okDelegate = okDelegate;
-            }
-            public void Display(){
-                PopupInputField.Display(
-                    title,
-                    defaultText,
-                    okDelegate
-                );
-            }
-           public string title;
-           public string defaultText;
-           public Panel_PopUpInputField.OnOkDelegate okDelegate;
-        }
+        //     public PopupInputFieldQueueItem(
+        //         string title,
+        //         string defaultText,
+        //         Panel_PopUpInputField.OnOkDelegate okDelegate
+        //     ){
+        //         this.title = title;
+        //         this.defaultText = defaultText;
+        //         this.okDelegate = okDelegate;
+        //     }
+        //     public void Display(){
+        //         PopupInputField.Display(
+        //             title,
+        //             defaultText,
+        //             okDelegate
+        //         );
+        //     }
+        //    public string title;
+        //    public string defaultText;
+        //    public Panel_PopUpInputField.OnOkDelegate okDelegate;
+        // }
         
-        [HarmonyPatch(typeof(PopupInputField), "Display", new Type[] { 
-            typeof(string), 
-            typeof(string), 
-            typeof(Panel_PopUpInputField.OnOkDelegate)
-        })]
-        [HarmonyPrefix]
-        public static bool PopupMessageInputFieldPatch(
-            string title,
-            string defaultText,
-            Panel_PopUpInputField.OnOkDelegate okDelegate
-        ){
-            if (PopupQueue.PopupIsActive()){
-                ptfInstance.ptfLogger.LogInfo("popup is already active, queueing!");
-                PopupInputFieldQueueItem QueueItem = new PopupInputFieldQueueItem(
-                    title,
-                    defaultText,
-                    okDelegate
-                );
-                PopupQueue.queue.Enqueue(QueueItem);
-                return false;
-            }
-            return true;
-        }
+        // [HarmonyPatch(typeof(PopupInputField), "Display", new Type[] { 
+        //     typeof(string), 
+        //     typeof(string), 
+        //     typeof(Panel_PopUpInputField.OnOkDelegate)
+        // })]
+        // [HarmonyPrefix]
+        // public static bool PopupMessageInputFieldPatch(
+        //     string title,
+        //     string defaultText,
+        //     Panel_PopUpInputField.OnOkDelegate okDelegate
+        // ){
+        //     if (PopupQueue.PopupIsActive()){
+        //         ptfInstance.ptfLogger.LogInfo("popup is already active, queueing!");
+        //         PopupInputFieldQueueItem QueueItem = new PopupInputFieldQueueItem(
+        //             title,
+        //             defaultText,
+        //             okDelegate
+        //         );
+        //         PopupQueue.queue.Enqueue(QueueItem);
+        //         return false;
+        //     }
+        //     return true;
+        // }
 
 
 
@@ -641,70 +638,70 @@ namespace PolyTechFramework
             }
             return true;
         }
-        public class PopupWarningQueueItem : Popup {
-            public PopupWarningQueueItem() {}
+        // public class PopupWarningQueueItem : Popup {
+        //     public PopupWarningQueueItem() {}
 
-            public PopupWarningQueueItem(
-                string message,
-                PopUpWarningCategory category
-            ){
-                this.message = message;
-                this.category = category;
-            }
-            public void Display(){
-                PopUpWarning.Display(
-                    message,
-                    category
-                );
-                GameUI.m_Instance.m_PopUpWarning.m_NeverShowAgainToggle.transform.parent.gameObject.SetActive(false);
-            }
-            public string message;
-            public PopUpWarningCategory category;
-        }
-        [HarmonyPatch(typeof(PopUpWarning), "Display", new Type[] { 
-            typeof(string), 
-            typeof(PopUpWarningCategory)
-        })]
+        //     public PopupWarningQueueItem(
+        //         string message,
+        //         PopUpWarningCategory category
+        //     ){
+        //         this.message = message;
+        //         this.category = category;
+        //     }
+        //     public void Display(){
+        //         PopUpWarning.Display(
+        //             message,
+        //             category
+        //         );
+        //         GameUI.m_Instance.m_PopUpWarning.m_NeverShowAgainToggle.transform.parent.gameObject.SetActive(false);
+        //     }
+        //     public string message;
+        //     public PopUpWarningCategory category;
+        // }
+        // [HarmonyPatch(typeof(PopUpWarning), "Display", new Type[] { 
+        //     typeof(string), 
+        //     typeof(PopUpWarningCategory)
+        // })]
+        // [HarmonyPrefix]
+        // public static bool PopupWarningPatch(
+        //     string message,
+        //     PopUpWarningCategory category
+        // ){
+        //     if (PopupQueue.PopupIsActive()){
+        //         ptfInstance.ptfLogger.LogInfo("popup is already active, queueing!");
+        //         PopupWarningQueueItem QueueItem = new PopupWarningQueueItem(
+        //             message,
+        //             category
+        //         );
+        //         PopupQueue.queue.Enqueue(QueueItem);
+        //         return false;
+        //     }
+        //     return true;
+        // }
+
+
+        // [HarmonyPatch(typeof(Replays), "CreateReplayMovieDirectory")]
+        // [HarmonyPrefix]
+        // private static bool PatchReplays()
+        // {
+        //     Replays.m_Path = Path.Combine(GamePersistentPath.GetPersistentDataDirectory(), Replays.REPLAYS_DIRECTORY);
+        //     Utils.TryToCreateDirectory(Replays.m_Path);
+        //     Replays.m_Path = Path.Combine(Replays.m_Path, "modded");
+        //     Utils.TryToCreateDirectory(Replays.m_Path);
+        //     Replays.m_PathForPublicDisplay = Path.Combine(GamePersistentPath.GetCensoredPersistentDataDirectory(), Replays.REPLAYS_DIRECTORY);
+        //     return !ptfInstance.modCheated;
+        // }
+
+
+        [HarmonyPatch(typeof(GalleryMetaData), "Create")]
         [HarmonyPrefix]
-        public static bool PopupWarningPatch(
-            string message,
-            PopUpWarningCategory category
-        ){
-            if (PopupQueue.PopupIsActive()){
-                ptfInstance.ptfLogger.LogInfo("popup is already active, queueing!");
-                PopupWarningQueueItem QueueItem = new PopupWarningQueueItem(
-                    message,
-                    category
-                );
-                PopupQueue.queue.Enqueue(QueueItem);
-                return false;
-            }
-            return true;
-        }
-
-
-        [HarmonyPatch(typeof(Replays), "CreateReplayMovieDirectory")]
-        [HarmonyPrefix]
-        private static bool PatchReplays()
-        {
-            Replays.m_Path = Path.Combine(GamePersistentPath.GetPersistentDataDirectory(), Replays.REPLAYS_DIRECTORY);
-            Utils.TryToCreateDirectory(Replays.m_Path);
-            Replays.m_Path = Path.Combine(Replays.m_Path, "modded");
-            Utils.TryToCreateDirectory(Replays.m_Path);
-            Replays.m_PathForPublicDisplay = Path.Combine(GamePersistentPath.GetCensoredPersistentDataDirectory(), Replays.REPLAYS_DIRECTORY);
-            return !ptfInstance.modCheated;
-        }
-
-
-        [HarmonyPatch(typeof(Panel_ShareReplay), "CreateGalleryUploadBody")]
-        [HarmonyPostfix]
-        private static void PatchGalleryUploadBody(ref GalleryUploadBody __result)
+        private static void PatchGalleryMetaDataCreate(string steamId, string levelId, string worldId, ref string maxStress, ref string budget, string workshopLevelName)
         {
             //ptfInstance.ptfLogger.LogMessage($"Uploading video to gallery, modCheated = {ptfInstance.modCheated}");
             if (ptfInstance.modCheated)
             {
-                __result.m_MaxStress = 42069;
-                __result.m_BudgetUsed = int.MaxValue;
+                maxStress = "42069";
+                budget = int.MaxValue.ToString();
             }
         }
 
@@ -931,51 +928,43 @@ namespace PolyTechFramework
             ptfInstance.ptfLogger.LogMessage($"Game Started with the following Cheat mods: {cheats}");
         }
 
-        [HarmonyPatch]
-        static class uploadSteamScorePatch
-        {
-            static bool Prepare()
-            {
-                return TargetMethod() != null;
-            }
+        // [HarmonyPatch]
+        // static class uploadSteamScorePatch
+        // {
+        //     static bool Prepare()
+        //     {
+        //         return TargetMethod() != null;
+        //     }
 
-            static MethodInfo TargetMethod()
-            {
-                var steamStatsType = typeof(GameStateManager).Assembly.GetType("SteamStatsAndAchievements");
-                if (steamStatsType == null) return null;
-                return AccessTools.Method(steamStatsType, "UploadLeaderboardScore");
-            }
+        //     static MethodInfo TargetMethod()
+        //     {
+        //         var steamStatsType = typeof(GameStateManager).Assembly.GetType("SteamLeaderboardsUpload");
+        //         if (steamStatsType == null) return null;
+        //         return AccessTools.Method(steamStatsType, "GenerateUploadValues");
+        //     }
 
-            static bool Prefix(int score, bool didBreak) {
-                return score >= leaderboardProtMin.Value;
-            }
-        }
+        //     static bool Prefix(string levelId, int score, float maxStressNormalized, bool didBreak, bool underBudget) {
+        //         return score >= leaderboardProtMin.Value;
+        //     }
+        // }
 
-        [HarmonyPatch(typeof(LeaderBoards), "UploadScoreAsync")]
+        [HarmonyPatch(typeof(SteamLeaderboardsUpload), "GenerateUploadValues")]
         [HarmonyPrefix]
-        public static bool uploadScorePatch(
-            LeaderboardsUploadBody body, 
-            string levelID, 
-            bool didBreak, 
-            LeaderboardUploadScore.OnUploadScoreDelegate callback,
-            Queue<LeaderboardUploadScore> ___m_ScoresToUpload
-        )
+        public static bool uploadScorePatch(string levelId, int score, float maxStressNormalized, bool didBreak, bool underBudget)
         {
-            int score = body.m_Value;
             int minScore = leaderboardProtMin.Value;
             bool allowedBudget = score >= minScore;
 
             if(leaderboardBlock.Value)
             {
-                if(allowedBudget) PopUpWarning.Display($"Your score would be {score}, however you have blocked all scores from being uploaded in the PTF settings.");
-                else PopUpWarning.Display($"Your score ({score}) was below the minimum set in the PTF settings ({minScore}).");
+                PopUpMessage.Display($"Your score would be {score}, however you have blocked all scores from being uploaded in the PTF settings.", () => {});
                 GameUI.m_Instance.m_LevelComplete.m_LeaderboardPanel.ForceRefresh();
                 return false;
             }
 
             if(!allowedBudget)
             {
-                PopUpWarning.Display($"Your score {score} was below the minimum budget {minScore} and as such will not be submitted.");
+                PopUpMessage.Display($"Your score {score} was below the minimum budget {minScore} and as such will not be submitted.", () => {});
                 GameUI.m_Instance.m_LevelComplete.m_LeaderboardPanel.ForceRefresh();
                 return false;
             }
@@ -986,8 +975,8 @@ namespace PolyTechFramework
                 PopUpMessage.Display($"Would you like to upload your score of {score} to the leaderboard?",
                 () => {
                     // On Yes
-                    LeaderboardUploadScore item = new LeaderboardUploadScore(body, didBreak, levelID, callback);
-	                ___m_ScoresToUpload.Enqueue(item);
+                    SteamLeaderboardsUpload.UploadLeaderboardScore(levelId, score, maxStressNormalized, didBreak, underBudget, Bridge.m_BridgeRestore, 
+                        Profiles.m_ActiveProfile.m_LeaderboardsFilter, new Action<bool>(GameLeaderboards.UploadScoreComplete));
                 },
                 () => {
                     // On No

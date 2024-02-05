@@ -14,15 +14,15 @@ namespace PolyTechFramework
         public virtual void enableMod()
         {
             Logger.LogError("enableMod() Function Not Implemented, Please Have Mod Author Fix");
-            if (Profile.m_NeverShowAgain.Contains(PopUpWarningCategory.OLDER_PHYSICS_ENGINE)) return;
-            PopUpWarning.Display("Something tried to automatically enable a mod, but the mod doesn't support this feature. Try setting them manually.", PopUpWarningCategory.OLDER_PHYSICS_ENGINE);
+            if (Profiles.m_ActiveProfile.m_NeverShowAgain.Contains(PopUpWarningCategory.OLDER_PHYSICS_ENGINE)) return;
+            PopUpMessage.Display("Something tried to automatically enable a mod, but the mod doesn't support this feature. Try setting them manually.", () => {});
         }
 
         public virtual void disableMod()
         {
             Logger.LogError("disableMod() Function Not Implemented, Please Have Mod Author Fix");
-            if (Profile.m_NeverShowAgain.Contains(PopUpWarningCategory.OLDER_PHYSICS_ENGINE)) return;
-            PopUpWarning.Display("Something tried to automatically disable a mod, but the mod doesn't support this feature. Try setting them manually.", PopUpWarningCategory.OLDER_PHYSICS_ENGINE);
+            if (Profiles.m_ActiveProfile.m_NeverShowAgain.Contains(PopUpWarningCategory.OLDER_PHYSICS_ENGINE)) return;
+            PopUpMessage.Display("Something tried to automatically disable a mod, but the mod doesn't support this feature. Try setting them manually.", () => {});
         }
 
         public virtual string getSettings()
@@ -34,8 +34,8 @@ namespace PolyTechFramework
         public virtual void setSettings(string settings)
         {
             Logger.LogError("setSettings() Function Not Implemented, Please Have Mod Author Fix");
-            if (Profile.m_NeverShowAgain.Contains(PopUpWarningCategory.OLDER_PHYSICS_ENGINE)) return;   
-            PopUpWarning.Display("Something tried to automatically set the settings for a mod, but the mod doesn't support this feature. Try setting them manually.", PopUpWarningCategory.OLDER_PHYSICS_ENGINE);
+            if (Profiles.m_ActiveProfile.m_NeverShowAgain.Contains(PopUpWarningCategory.OLDER_PHYSICS_ENGINE)) return;   
+            PopUpMessage.Display("Something tried to automatically set the settings for a mod, but the mod doesn't support this feature. Try setting them manually.", () => {});
         }
 
         public virtual byte[] saveData(){

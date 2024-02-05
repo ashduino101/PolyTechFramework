@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Collections.Generic;
 using PolyTechFramework;
 
 namespace PolyTechFramework
@@ -7,9 +8,8 @@ namespace PolyTechFramework
     {
         public static void setModdedSimSpeeds()
         {
-            Bridge.NUM_SIMULATION_SPEEDS = 11;
-            Bridge.DEFAULT_SIMULATION_SPEED_INDEX = 5;
-            Bridge.m_SimulationSpeeds = new float[]
+            BridgeSimSpeed.m_DefaultSimulationSpeedIndex = 5;
+            BridgeSimSpeed.m_SimulationSpeeds = new List<float>
             {
                 0.0000001f,
                 0.05f,
@@ -26,9 +26,8 @@ namespace PolyTechFramework
         }
         public static void setVanillaSimSpeeds()
         {
-            Bridge.NUM_SIMULATION_SPEEDS = 5;
-            Bridge.DEFAULT_SIMULATION_SPEED_INDEX = 2;
-            Bridge.m_SimulationSpeeds = new float[]
+            BridgeSimSpeed.m_DefaultSimulationSpeedIndex = 2;
+            BridgeSimSpeed.m_SimulationSpeeds = new List<float>
             {
                 0.2f,
                 0.5f,
@@ -36,17 +35,6 @@ namespace PolyTechFramework
                 2f,
                 3f
             };
-        }
-        public static void setReplaysModded()
-        {
-            if (GamePersistentPath.GetPersistentDataDirectory() == null) return;
-            Replays.m_Path = Path.Combine(GamePersistentPath.GetPersistentDataDirectory(), Replays.REPLAYS_DIRECTORY);
-            Replays.m_Path = Path.Combine(Replays.m_Path, "modded");
-            Utils.TryToCreateDirectory(Replays.m_Path);
-        }
-        public static void setReplaysVanilla()
-        {
-            Replays.m_Path = Path.Combine(GamePersistentPath.GetPersistentDataDirectory(), Replays.REPLAYS_DIRECTORY);
         }
         public static void setVersion()
         {
